@@ -1,4 +1,4 @@
-from recommendation import schemas
+from service import schemas
 
 
 async def get_recommendation(

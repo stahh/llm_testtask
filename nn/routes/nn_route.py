@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from libs.llm import embeddings, summarization_chain, vector_store
-from service import schemas, llm
+from service import schemas, recommendation
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ async def get_recommendations(
 ) -> dict[str, Any]:
     query = " ".join(preferences.topics)
     return {
-        "result": await service.get_recommendation(
+        "result": await recommendation.get_recommendation(
             query, vector, llm_chain, embeddings_model
         )
     }
@@ -33,7 +33,7 @@ async def agent_query(
     embeddings_model=Depends(embeddings),
 ) -> dict[str, Any]:
     return {
-        "result": await service.get_recommendation(
+        "result": await recommendation.get_recommendation(
             query.question, vector, llm_chain, embeddings_model
         )
     }

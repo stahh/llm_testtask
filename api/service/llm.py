@@ -1,20 +1,28 @@
 import datetime
 from time import mktime
+from typing import TYPE_CHECKING
 
-from chromadb.api.models import Collection
 from db import models
 from libs.rss_utils import parse_feed
 from service import schemas
 from sqlalchemy import distinct, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+if TYPE_CHECKING:
+    from langchain_huggingface import HuggingFaceEmbeddings
+    from chromadb.api.models import Collection
+
 
 async def parse_and_store_rss(
-    feed_url: str, db_session: AsyncSession, vector: Collection
+    feed_url: str,
+    db_session: AsyncSession,
+    vector: "Collection",
+    embedding_model: "HuggingFaceEmbeddings"
 ) -> None:
     feed = await parse_feed(feed_url)
     if not feed:
         return
+    embeddings = []
     documents = []
     ids = []
     metadatas = []
@@ -43,6 +51,7 @@ async def parse_and_store_rss(
                     or entry.title
                 )
                 documents.append(doc)
+                embeddings.append(embedding_model.embed_query(doc))
                 metadatas.append(
                     {
                         "title": article.title,
@@ -58,7 +67,9 @@ async def parse_and_store_rss(
 
 
 async def get_user_preference(
-    user_id: str, db_session: AsyncSession
+    user_id:
+    str, db_session:
+    AsyncSession
 ) -> schemas.UserPreferences | None:
     statement = select(models.UserPreferences).where(
         models.UserPreferences.user_id == user_id
@@ -83,7 +94,9 @@ async def get_recommendation_by_topic(
 
 
 async def add_user_preference(
-    user_id: int, topics: list[str], db_session: AsyncSession
+    user_id: int,
+    topics: list[str],
+    db_session: AsyncSession
 ) -> None:
     insert_statement = (
         insert(models.UserPreferences)
