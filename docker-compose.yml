@@ -1,0 +1,51 @@
+version: "3.4"
+
+
+services:
+  postgres_db:
+    image: postgres
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_PASSWORD: rss_password
+      POSTGRES_USER: rss_user
+      POSTGRES_DB: rss
+
+  neural_network_service:
+    build:
+      context: ./nn
+      dockerfile: Dockerfile
+    container_name: "neural_network"
+    command: "uvicorn --reload app:app --port 5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - "./nn:/usr/src/app"
+      - "/etc/localtime:/etc/localtime:ro"
+    logging:
+      options:
+        max-size: "100m"
+    env_file:
+      - .env
+    network_mode: host
+
+  api_service:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: "api_service"
+    command: "uvicorn --reload app:app --port 8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./api:/usr/src/app"
+      - "/etc/localtime:/etc/localtime:ro"
+    logging:
+      options:
+        max-size: "100m"
+    env_file:
+      - .env
+    depends_on:
+      - postgres_db
+      - neural_network_service
+    network_mode: host

@@ -1,0 +1,16 @@
+pydantic
+pydantic-settings
+asyncpg
+psycopg2-binary
+sqlalchemy[asyncio]
+fastapi
+uvicorn
+langchain
+langchain-community
+llama-index
+transformers
+langchain_huggingface
+chromadb
+sentencepiece
+accelerate
+huggingface_hub
