@@ -1,6 +1,6 @@
 # llm_testtask TEST Project
 
-Install docker and docker-compose to run the database.
+Install docker and docker-compose to run all services.
 ```shell
 apt-get install docker docker-compose
 ```
