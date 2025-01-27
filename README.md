@@ -1,9 +1,5 @@
 # llm_testtask TEST Project
 
-To run the project, you need to have Python 3.11 installed on your machine.
-```shell
-apt-get install python3.11
-```
 Install docker and docker-compose to run the database.
 ```shell
 apt-get install docker docker-compose
