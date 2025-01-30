@@ -1,23 +1,17 @@
 import datetime
 from time import mktime
-from typing import TYPE_CHECKING
 
 from db import models
 from libs.rss_utils import parse_feed
 from service import schemas
 from sqlalchemy import distinct, insert, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-if TYPE_CHECKING:
-    from langchain_huggingface import HuggingFaceEmbeddings
-    from chromadb.api.models import Collection
+from libs.llm import vector_store as vector
+from libs.llm import embeddings as embedding_model
+from db.database import database as db
 
 
 async def parse_and_store_rss(
     feed_url: str,
-    db_session: AsyncSession,
-    vector: "Collection",
-    embedding_model: "HuggingFaceEmbeddings"
 ) -> None:
     feed = await parse_feed(feed_url)
     if not feed:
@@ -26,7 +20,7 @@ async def parse_and_store_rss(
     documents = []
     ids = []
     metadatas = []
-    async with db_session as sess:
+    async with db.get_session() as sess:
         for entry in feed:
             statement = select(models.Article).where(models.Article.url == entry.link)
             result = await sess.scalar(statement)
@@ -67,25 +61,21 @@ async def parse_and_store_rss(
 
 
 async def get_user_preference(
-    user_id:
-    str, db_session:
-    AsyncSession
+    user_id:str
 ) -> schemas.UserPreferences | None:
     statement = select(models.UserPreferences).where(
         models.UserPreferences.user_id == user_id
     )
-    async with db_session as sess:
+    async with db.get_session() as sess:
         result = await sess.scalar(statement)
         if not result:
             return None
         return schemas.UserPreferences.model_validate(result.as_dict())
 
 
-async def get_recommendation_by_topic(
-    db_session: AsyncSession,
-) -> list[str]:
+async def get_recommendation_by_topic() -> list[str]:
     dt = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)
-    async with db_session as sess:
+    async with db.get_session() as sess:
         statement = select(distinct(models.Article.feed_url)).where(
             models.Article.published_at < dt
         )
@@ -96,13 +86,12 @@ async def get_recommendation_by_topic(
 async def add_user_preference(
     user_id: int,
     topics: list[str],
-    db_session: AsyncSession
 ) -> None:
     insert_statement = (
         insert(models.UserPreferences)
         .values(user_id=user_id, topics=",".join(topics))
         .returning(models.UserPreferences)
     )
-    async with db_session as session:
+    async with db.get_session() as session:
         await session.scalar(insert_statement)
         await session.commit()

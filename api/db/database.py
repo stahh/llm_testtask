@@ -1,12 +1,12 @@
 from contextlib import asynccontextmanager
-
+import logging
 from conf import DSN
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
-
+logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
@@ -16,14 +16,14 @@ class Database:
         try:
             async with self.engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-            print("Successfully connected to the Database!")
+            logger.info("Successfully connected to the Database!")
         except Exception as e:
-            print(f"Error connecting to database: {e}")
+            logger.error(f"Error connecting to database: {e}")
 
     async def create_tables(self):
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("Database tables created successfully")
+        logger.info("Database tables created successfully")
 
     @asynccontextmanager
     async def get_session(self) -> AsyncSession:
@@ -41,7 +41,7 @@ class Database:
 
     async def close_database(self):
         await self.engine.dispose()
-        print("Database connection closed!")
+        logger.info("Database connection closed!")
 
 
 database = Database()

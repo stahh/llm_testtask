@@ -3,9 +3,7 @@ import logging
 
 import aiohttp
 from conf import FEEDS, NN_HOST
-from db.database import database
 from fastapi import APIRouter, Depends
-from libs.llm import vector_store, embeddings
 from routes.headers import token_header
 from service import schemas, llm
 from starlette.requests import Request
@@ -22,13 +20,9 @@ rss_router = APIRouter(
 
 # API endpoints
 @rss_router.get("/refresh")
-async def refresh_rss(
-    db_session=Depends(database.get_session),
-    vector=Depends(vector_store),
-embeddings_model=Depends(embeddings),
-) -> dict[str, str]:
+async def refresh_rss() -> dict[str, str]:
     tasks = [
-        llm.parse_and_store_rss(feed_url, db_session, vector, embeddings_model) for feed_url in FEEDS
+        llm.parse_and_store_rss(feed_url) for feed_url in FEEDS
     ]
     await asyncio.gather(*tasks)
     return {"message": "RSS feeds refreshed."}
@@ -37,10 +31,9 @@ embeddings_model=Depends(embeddings),
 @rss_router.get("/users/recommendations")
 async def get_recommendations(
     request: Request,
-    db_session=Depends(database.get_session),
 ) -> list[schemas.Topic | None]:
     user = request.scope["user"]
-    preferences = await llm.get_user_preference(user.id, db_session)
+    preferences = await llm.get_user_preference(user.id)
     if not preferences:
         # Some random recommendations?
         return []
@@ -58,24 +51,20 @@ async def get_recommendations(
 async def add_preferences(
     request: Request,
     topics: list[str],
-    db_session=Depends(database.get_session),
 ) -> dict[str, str]:
     user = request.scope["user"]
-    await llm.add_user_preference(user.id, topics, db_session)
+    await llm.add_user_preference(user.id, topics)
     return {"message": f"Topics {topics} added"}
 
 
 @rss_router.post("/assistant/query")
 async def agent_query(
     query: schemas.AgentQuery,
-    db_session=Depends(database.get_session),
-    vector=Depends(vector_store),
-embeddings_model=Depends(embeddings),
 ) -> list[schemas.Topic | None]:
 
-    search_results = await llm.get_recommendation_by_topic(db_session)
+    search_results = await llm.get_recommendation_by_topic()
     tasks = [
-        llm.parse_and_store_rss(result, database.get_session(), vector, embeddings_model)
+        llm.parse_and_store_rss(result)
         for result in search_results
     ]
     _ = await asyncio.gather(*tasks)

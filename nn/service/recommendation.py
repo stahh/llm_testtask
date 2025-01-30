@@ -1,8 +1,11 @@
 from service import schemas
+from libs.llm import embeddings as embedding_model
+from libs.llm import summarization_chain as llm_chain
+from libs.llm import vector_store as vector
 
 
 async def get_recommendation(
-    query: str, vector, llm_chain, embedding_model
+    query: str
 ) -> list[schemas.Topic | None]:
     query_embedding = embedding_model.embed_query(query)
     search_results = vector.query(query_embeddings=query_embedding, n_results=5)
