@@ -1,13 +1,10 @@
-import datetime
-from time import mktime
+import logging
 
-from db import models
 from libs.rss_utils import parse_feed
 from service import schemas
-from sqlalchemy import distinct, insert, select
-from libs.llm import vector_store as vector
-from libs.llm import embeddings as embedding_model
-from db.database import database as db
+from db.dao import sql, vector
+
+logger = logging.getLogger(__name__)
 
 
 async def parse_and_store_rss(
@@ -20,78 +17,46 @@ async def parse_and_store_rss(
     documents = []
     ids = []
     metadatas = []
-    async with db.get_session() as sess:
-        for entry in feed:
-            statement = select(models.Article).where(models.Article.url == entry.link)
-            result = await sess.scalar(statement)
-            if not result:
-                try:
-                    dt = datetime.datetime.fromtimestamp(mktime(entry.published_parsed))
-                except AttributeError:
-                    dt = datetime.datetime.now(tz=datetime.UTC)
-                article = models.Article(
-                    id=entry.id,
-                    title=entry.title,
-                    url=entry.link,
-                    feed_url=feed_url,
-                    description=entry.get("description", ""),
-                    content=entry.get("content", [{}])[0].get("value", ""),
-                    published_at=dt,
-                )
-                sess.add(article)
-                doc = (
-                    entry.get("content", [{}])[0].get("value", "")
-                    or entry.get("description", "")
-                    or entry.title
-                )
-                documents.append(doc)
-                embeddings.append(embedding_model.embed_query(doc))
-                metadatas.append(
-                    {
-                        "title": article.title,
-                        "url": article.url,
-                        "feed_url": feed_url,
-                        "published_at": article.published_at.timestamp(),
-                    }
-                )
-                ids.append(article.id)
-        await sess.commit()
-    if ids and documents and metadatas:
-        vector.add(documents=documents, metadatas=metadatas, ids=ids)
+    for entry in feed:
+        try:
+            documents, embeddings, metadatas, ids = await sql.add_entry(entry, feed_url)
+        except Exception as e:
+            logger.error(f"Error adding entry: {e}")
+
+    if ids:
+        try:
+            await vector.add_docs(documents=documents,
+                            embeddings=embeddings,
+                            metadatas=metadatas,
+                            ids=ids)
+        except Exception as e:
+            logger.error(f"Error adding docs to vector: {e}")
 
 
 async def get_user_preference(
-    user_id:str
+    user_id: str
 ) -> schemas.UserPreferences | None:
-    statement = select(models.UserPreferences).where(
-        models.UserPreferences.user_id == user_id
-    )
-    async with db.get_session() as sess:
-        result = await sess.scalar(statement)
-        if not result:
-            return None
-        return schemas.UserPreferences.model_validate(result.as_dict())
+    try:
+        return await sql.get_user_preference(user_id)
+    except Exception as e:
+        logger.error(f"Error getting user preference: {e}")
+        return None
 
 
 async def get_recommendation_by_topic() -> list[str]:
-    dt = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)
-    async with db.get_session() as sess:
-        statement = select(distinct(models.Article.feed_url)).where(
-            models.Article.published_at < dt
-        )
-        search_results = await sess.scalars(statement)
-    return [x for x in search_results]
+    try:
+        return await sql.get_last_rss_entries()
+    except Exception as e:
+        logger.error(f"Error getting last rss entries: {e}")
+        return []
 
 
 async def add_user_preference(
     user_id: int,
     topics: list[str],
 ) -> None:
-    insert_statement = (
-        insert(models.UserPreferences)
-        .values(user_id=user_id, topics=",".join(topics))
-        .returning(models.UserPreferences)
-    )
-    async with db.get_session() as session:
-        await session.scalar(insert_statement)
-        await session.commit()
+    try:
+        return await sql.add_user_preference(user_id, topics)
+    except Exception as e:
+        logger.error(f"Error adding user preference: {e}")
+        return None

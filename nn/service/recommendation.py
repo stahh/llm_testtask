@@ -1,7 +1,7 @@
 from service import schemas
-from libs.llm import embeddings as embedding_model
-from libs.llm import summarization_chain as llm_chain
-from libs.llm import vector_store as vector
+from libs.llm import embedding_model
+from libs.llm import llm_chain
+from libs.llm import vector
 
 
 async def get_recommendation(
